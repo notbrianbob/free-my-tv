@@ -83,6 +83,8 @@ def build(preview, config, profile):
                                            'signed with "%s"' % profile if profile else 'not signed'))
     if not config['tmdbKey']:
         print('No TMDB key: the picks stay off (everything else works).')
+    if webapp.ha_summary(config):
+        print(webapp.ha_summary(config))
 
 
 if __name__ == '__main__':

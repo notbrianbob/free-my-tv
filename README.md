@@ -119,6 +119,8 @@ Older LG TVs (webOS 3) don't let Free My TV see their apps at all, so the shelf 
 python3 webos/apps.py 192.168.1.50 && python3 webos/build.py && python3 webos/install.py 192.168.1.50
 ```
 
+The shelf can hold the TV's inputs too: in *Home Settings* → *Shelf*, Live TV and the HDMI inputs are listed under the apps, so the console or the PC can sit next to Netflix. The shelf also starts with what you last opened from Free My TV (*Last used*), so the first OK when it opens takes you back there; *Home Settings* → *Last used on the shelf* turns that off. With [Home Assistant](#home-assistant-optional-lg-and-samsung), the drawer gets your scene buttons too.
+
 Developer Mode lasts about 40 days: open the Developer Mode app now and then and press **EXTEND**. To remove Free My TV, run `python3 webos/install.py 192.168.1.50 --uninstall`.
 
 ## Samsung TVs (Tizen)
@@ -156,6 +158,7 @@ The first values come from `config.properties`, created by the first build (Goog
 | `hide_services` | Streaming services to leave out of the picks even when their app is on the TV (`netflix`, `prime`, `disney`…), comma separated; for apps the TV ships that you don't subscribe to. Google TV only | empty |
 | `hide_apps` | Apps to leave out of the shelf, All Apps and the picks, by id or name (part of it), comma separated; for apps the TV ships that can't be uninstalled, like Samsung's built-in Netflix. LG and Samsung only | empty |
 | `shelf_apps` | The shelf's apps in this order, by id or name (part of it), comma separated; changing it wins once over the shelf picked on the TV. On Samsung, a whole app id also brings an app the TV leaves out of its list, like one installed in Developer Mode. LG and Samsung only | empty |
+| `ha_url`, `ha_token`, `ha_scenes` | [Home Assistant](#home-assistant-optional-lg-and-samsung) scene buttons in the drawer: your Home Assistant's address, a long-lived access token, and the buttons as `Name=entity`, comma separated. LG and Samsung only | empty |
 | `drawer_first` | `true` opens the home screen with the drawer already out (apps in the middle, inputs, weather and prices below), so nothing has to be scrolled to reach the inputs; Back closes it to the full page. For a TV whose streaming apps live on a box, where the picks stay empty. LG and Samsung only | `false` |
 
 Changed something? Run `./build.sh` and install again. Keep `freemytv.keystore`: updates are signed with it.
@@ -167,6 +170,18 @@ Free, and it takes two minutes: create an account at [themoviedb.org](https://ww
 ### Opening a title, not just its app (optional)
 
 With a free [Watchmode](https://api.watchmode.com/) key (`watchmode_key=` in `config.properties`), a pick opens its own page in the streaming app instead of the app's home. The free plan (2,500 credits a month) is enough: each title costs two requests the first time and is remembered after that. It works where the app takes the title's web address (tested: Prime Video and JioHotstar); where it doesn't, the pick just opens the app, as without a key.
+
+### Home Assistant (optional, LG and Samsung)
+
+The drawer can hold a few buttons that run things in your [Home Assistant](https://www.home-assistant.io): *Movie*, *Gaming*, *Good night*. One press dims the lights, switches the TV's input or app and sets the volume. Home Assistant can also show alerts on the TV while you watch (the doorbell, the washer). **[The step-by-step guide](HOME-ASSISTANT.md)** covers adding the TV to Home Assistant, the scripts, the token, the three lines in `config.properties`, alerts, and what each error means. In short:
+
+```properties
+ha_url=http://homeassistant.local:8123
+ha_token=<a long-lived access token: your profile in Home Assistant → Security>
+ha_scenes=Movie=script.movie_mode,Gaming=script.gaming_mode,Good night=script.good_night
+```
+
+Then build and install again. The token is a password to your home: it stays in `config.properties` (out of git) and in the app built for your TV, so don't share that package.
 
 ### Your own photos (optional)
 
@@ -282,7 +297,7 @@ reference (fix them by hand); the others were machine-made, and corrections from
 
 ## Privacy
 
-No accounts, no analytics, no tracking. The app talks to TMDB, Open-Meteo (with the coordinates you set, or your time zone's main city), and Binance only when `show_crypto=true`, and Watchmode only when you set a `watchmode_key`. On Google TV and Android TV, the APK from the release asks GitHub (api.github.com) once a week, or when you press *Updates*, for the latest release, and when there's a newer one downloads it from github.com and GitHub's download server (release-assets.githubusercontent.com); a build you made yourself asks only when you press *Updates*. The *Now Playing widget* reads what apps are playing (title, artist, the app) through a notification listener, the only way Android shares it: Free My TV allows the listener only while the widget is on, never reads a notification with it, and asks Android to unbind it as soon as it connects, so it stays unbound. What's playing never leaves the TV. Your settings stay on your computer and your TV.
+No accounts, no analytics, no tracking. The app talks to TMDB, Open-Meteo (with the coordinates you set, or your time zone's main city), and Binance only when `show_crypto=true`, Watchmode only when you set a `watchmode_key`, and your own Home Assistant only when you set `ha_url` and press one of its buttons. On Google TV and Android TV, the APK from the release asks GitHub (api.github.com) once a week, or when you press *Updates*, for the latest release, and when there's a newer one downloads it from github.com and GitHub's download server (release-assets.githubusercontent.com); a build you made yourself asks only when you press *Updates*. The *Now Playing widget* reads what apps are playing (title, artist, the app) through a notification listener, the only way Android shares it: Free My TV allows the listener only while the widget is on, never reads a notification with it, and asks Android to unbind it as soon as it connects, so it stays unbound. What's playing never leaves the TV. Your settings stay on your computer and your TV.
 
 ## Credits
 

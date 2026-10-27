@@ -254,8 +254,17 @@
     }
   }
 
-  /** An app's face: its logo on its brand color (or its name, when the icon can't be read). */
+  /** An app's face: its logo on its brand color (or its name, when the icon can't be read). An input: its symbol and name. */
   function face(app, box, wordSize) {
+    if (app.input) {
+      paint(box, '#3A3A3F', '#1C1C1E');
+      setClass(box, 'input', true);
+      setClass(box, 'off', app.off);
+      sym(app.symbol, box);
+      var name = el('div', 'word', box, app.title);
+      if (wordSize) name.style.fontSize = Math.round(wordSize * 0.8) + 'px';
+      return;
+    }
     var k = shelfKey(app);
     var top = k ? k[3][0] : app.color ? darken(app.color, 0.92) : '#2A2A2E';
     var bottom = k ? k[3][1] : app.color ? darken(app.color, 0.62) : '#161618';
@@ -278,7 +287,28 @@
     }
   }
 
-  var apps = [], shelf = [], others = [], inputs = [];
+  // shelf: the tiles, the Last used one first when it's on; pinned: what the person (or the build) put on the shelf.
+  var apps = [], shelf = [], pinned = [], others = [], inputs = [];
+
+  /** The TV's inputs as shelf items, so HDMI 1 or the console can sit beside the apps. */
+  function inputItems() {
+    return inputs.map(function (x) {
+      return {id: x.id, title: x.label || tr('Live TV'), symbol: x.symbol, input: true, off: !x.connected};
+    });
+  }
+
+  /** Home Settings → Last used on the shelf: what was opened last from here, if it's still on the TV. */
+  function lastItem() {
+    var id = Prefs.lastTile() && Prefs.lastUsed(), pool = apps.concat(inputItems());
+    for (var i = 0; id && i < pool.length; i++) {
+      if (pool[i].id !== id) continue;
+      var copy = {};
+      for (var k in pool[i]) if (pool[i].hasOwnProperty(k)) copy[k] = pool[i][k];
+      copy.last = true;
+      return copy;
+    }
+    return null;
+  }
 
   /** shelf_apps in config.properties: the shelf in that order, by id or name (part of it). */
   var WANTED = (CONFIG.shelfApps || []).map(function (s) { return s.toLowerCase(); });
@@ -288,10 +318,10 @@
       Prefs.set('shelf', null);
       Prefs.set('shelfConfig', WANTED.join(','));
     }
-    var chosen = Prefs.shelf(), out = [];
+    var chosen = Prefs.shelf(), out = [], pool = apps.concat(inputItems());
     if (chosen) {
       for (var i = 0; i < chosen.length; i++) {
-        for (var j = 0; j < apps.length; j++) if (apps[j].id === chosen[i]) out.push(apps[j]);
+        for (var j = 0; j < pool.length; j++) if (pool[j].id === chosen[i]) out.push(pool[j]);
       }
     } else if (WANTED.length) {
       for (var w = 0; w < WANTED.length; w++) {
@@ -309,8 +339,10 @@
       }
       if (!out.length) out = apps.slice(0, FEW_APPS);
     }
-    shelf = out;
-    others = apps.filter(function (x) { return shelf.indexOf(x) < 0; });
+    pinned = out;
+    others = apps.filter(function (x) { return pinned.indexOf(x) < 0; });
+    var last = lastItem();
+    shelf = last ? [last].concat(pinned) : pinned.slice();
   }
 
   // MARK: - Focus
@@ -511,6 +543,13 @@
       arrow.style.left = (a ? width + 2 * pad - 14 : 14) - 8.5 + 'px';
       arrow.style.top = (pad + th / 2 - 8.5) + 'px';
     }
+    // The Last used tile: its name under the glass.
+    if (shelf[0] && shelf[0].last) {
+      var caption = el('div', 'last-label', platter, tr('Last used'));
+      caption.style.left = pad + 'px';
+      caption.style.width = tw + 'px';
+      caption.style.top = (th + 2 * pad + 10) + 'px';
+    }
     st.shelf = Math.min(st.shelf, Math.max(0, shelf.length - 1));
     placeTiles();
   }
@@ -528,6 +567,7 @@
     var arrows = $('platter').children;
     arrows[0].style.visibility = shelfFirst > 0 ? '' : 'hidden';
     arrows[1].style.visibility = shelfFirst + n < shelf.length ? '' : 'hidden';
+    if (arrows[2]) arrows[2].style.visibility = shelfFirst > 0 ? 'hidden' : '';
   }
 
   /** Scrolls the shelf, one app at a time, so the focused app is shown. */
@@ -547,24 +587,30 @@
     var d = $('drawer');
     d.innerHTML = '';
     drawerItems = [];
+    var scenes = HomeAssistant.scenes(), shortcuts = TV.canOpenSettings ? 3 : 2;
+    // With Home Assistant's buttons too, the inputs the TV says have nothing on make room (they stay on the shelf's list).
+    var crowded = scenes.length > 0 && inputs.length + scenes.length + shortcuts > 8;
     for (var i = 0; i < inputs.length; i++) {
       var x = inputs[i];
-      drawerItems.push({label: x.label || tr('Live TV'), symbol: x.symbol, off: !x.connected, run: launcher(x.id, x.label)});
+      if (crowded && !x.connected && x.key !== 'live') continue;
+      drawerItems.push({group: tr('Inputs'), label: x.label || tr('Live TV'), symbol: x.symbol, off: !x.connected, run: launcher(x.id, x.label)});
     }
     drawerInputs = drawerItems.length;
-    drawerItems.push({label: tr('All Apps'), symbol: 'apps', run: openApps});
-    drawerItems.push({label: tr('Home Settings'), symbol: 'settings', run: openSettings});
-    if (TV.canOpenSettings) drawerItems.push({label: tr('TV Settings'), symbol: 'tv_settings', run: tvSettings});
-    var n = drawerItems.length, gap = 18, groupGap = 56, groups = drawerInputs > 0 && drawerInputs < n ? 2 : 1;
+    for (var s = 0; s < scenes.length; s++) {
+      drawerItems.push({group: tr('Scenes'), label: scenes[s].name, symbol: scenes[s].symbol, run: sceneRunner(scenes[s])});
+    }
+    drawerItems.push({group: tr('Shortcuts'), label: tr('All Apps'), symbol: 'apps', run: openApps});
+    drawerItems.push({group: tr('Shortcuts'), label: tr('Home Settings'), symbol: 'settings', run: openSettings});
+    if (TV.canOpenSettings) drawerItems.push({group: tr('Shortcuts'), label: tr('TV Settings'), symbol: 'tv_settings', run: tvSettings});
+    var n = drawerItems.length, gap = 18, groupGap = 56, groups = 1;
+    for (var g = 1; g < n; g++) if (drawerItems[g].group !== drawerItems[g - 1].group) groups++;
     var tw = Math.min(230, (1760 - Math.max(0, n - groups) * gap - (groups - 1) * groupGap) / Math.max(1, n));
     var xPos = 80;
     for (var k = 0; k < n; k++) {
-      if (k === drawerInputs && k > 0) {
-        xPos += groupGap - gap;
-        el('div', 'row-title', d, tr('Shortcuts')).style.left = (xPos + 4) + 'px';
-      }
-      if (k === 0 && drawerInputs) el('div', 'row-title', d, tr('Inputs')).style.left = '84px';
-      var item = drawerItems[k], key = el('div', 'key glass' + (item.off ? ' off' : ''), d);
+      var item = drawerItems[k];
+      if (k > 0 && item.group !== drawerItems[k - 1].group) xPos += groupGap - gap;
+      if (groups > 1 && (k === 0 || item.group !== drawerItems[k - 1].group)) el('div', 'row-title', d, item.group).style.left = (xPos + 4) + 'px';
+      var key = el('div', 'key glass' + (item.off ? ' off' : '') + (tw < 170 ? ' small' : ''), d);
       key.style.left = xPos + 'px';
       key.style.width = tw + 'px';
       sym(item.symbol, key);
@@ -730,6 +776,8 @@
       })(i);
     }
     rows.push({label: tr('Shelf'), value: '›', shelf: true, step: function (d) { if (d >= 0) openShelfEdit(); }});
+    rows.push({label: tr('Last used on the shelf'), toggle: Prefs.lastTile(),
+      step: function () { Prefs.set('lastTile', !Prefs.lastTile()); pickShelf(); renderShelf(); }});
     rows.push({label: tr('About this TV'), value: '›', about: true, step: function (d) { if (d >= 0) openAbout(); }});
     if (TV.canOpenSettings) rows.push({label: tr('TV Settings'), value: '›', step: function (d) { if (d >= 0) tvSettings(); }});
     return rows;
@@ -982,11 +1030,13 @@
 
   // MARK: - Shelf editor: which apps, in what order
 
+  /** The shelf's apps and inputs first, in their order; then the inputs, in the TV's; then the other apps, A to Z. */
   function editList() {
-    var ids = shelf.map(function (a) { return a.id; });
-    return {ids: ids, rows: apps.slice().sort(function (a, b) {
+    var ids = pinned.map(function (a) { return a.id; }), ins = inputItems();
+    return {ids: ids, rows: apps.concat(ins).sort(function (a, b) {
       var ia = ids.indexOf(a.id), ib = ids.indexOf(b.id);
-      if (ia >= 0 || ib >= 0) return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+      if (ia >= 0 || ib >= 0) return (ia < 0 ? 1e6 : ia) - (ib < 0 ? 1e6 : ib);
+      if (a.input || b.input) return a.input && b.input ? ins.indexOf(a) - ins.indexOf(b) : a.input ? -1 : 1;
       return a.title.toLowerCase() < b.title.toLowerCase() ? -1 : 1;
     })};
   }
@@ -1045,6 +1095,17 @@
     return function () {
       TV.launch(id, null, function (ok) {
         if (!ok) toast(trf("Couldn't open {app}.", {app: name || id}));
+        else if (id !== Prefs.lastUsed()) Prefs.set('lastUsed', id);   // the Last used tile, when the home screen shows again
+      });
+    };
+  }
+
+  /** A Home Assistant button: runs its script, scene, automation or button, and says how it went. */
+  function sceneRunner(scene) {
+    return function () {
+      HomeAssistant.run(scene, function (error) {
+        toast(error ? trf("Home Assistant didn't run {name}: {error}", {name: scene.name, error: error})
+          : trf('Home Assistant ran {name}.', {name: scene.name}));
       });
     };
   }
@@ -1146,7 +1207,7 @@
         }
         break;
       case Z.EDIT:
-        if (dy) st.edit = Math.max(0, Math.min(apps.length - 1, st.edit + dy));
+        if (dy) st.edit = Math.max(0, Math.min(editList().rows.length - 1, st.edit + dy));
         else if (dx) editShelf(dx);
         break;
       case Z.LANG:
@@ -1324,6 +1385,7 @@
   // MARK: - Start
 
   function renderAll() {
+    pickShelf();   // the inputs' names in a new language
     renderTop();
     renderQuotes();
     cards = [];
@@ -1348,9 +1410,9 @@
     TV.apps(function (list) {
       apps = list.filter(function (a) { return !hidden(a); });
       Data.setApps(apps);
-      pickShelf();
       TV.inputs(function (list2) {
         inputs = list2;
+        pickShelf();   // after the inputs: the shelf can hold them too
         if (done) done();
       });
     });

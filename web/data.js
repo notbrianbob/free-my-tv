@@ -54,6 +54,9 @@ var Prefs = (function () {
     quotes: function () { return pick('quotes', CONFIG.showCrypto !== false); },
     coin: function (i) { var c = pick('coins', null); return c ? c[i] !== false : true; },
     shelf: function () { return pick('shelf', null); },
+    /** The app or input last opened from here (its id), and whether the shelf starts with it (on by default). */
+    lastUsed: function () { return pick('lastUsed', ''); },
+    lastTile: function () { return pick('lastTile', true) !== false; },
     /** The shelf_apps of the build that last set the shelf, so a new one wins once over the TV's choice. */
     shelfConfig: function () { return pick('shelfConfig', ''); },
     /** The weather's city, picked on the TV (Home Settings → City), or config.properties' (or the time zone's). */
@@ -66,6 +69,40 @@ var Prefs = (function () {
       var c = (pick('coins', null) || [true, true, true, true]).slice();
       c[i] = on;
       this.set('coins', c);
+    }
+  };
+})();
+
+/**
+ * The drawer's Home Assistant buttons: ha_url, ha_token and ha_scenes in config.properties (none built --generic).
+ * A script or a scene runs, an automation triggers, a button is pressed.
+ */
+var HomeAssistant = (function () {
+  'use strict';
+  var SERVICES = {script: 'turn_on', scene: 'turn_on', automation: 'trigger', button: 'press', input_button: 'press'};
+  var url = (CONFIG.haUrl || '').replace(/\/+$/, ''), token = CONFIG.haToken || '';
+  var list = url && token ? (CONFIG.haScenes || []).filter(function (s) { return SERVICES[s.entity.split('.')[0]]; }) : [];
+
+  /** A symbol that fits the button's name (a film, a game, the night), or a house. */
+  function symbol(s) {
+    var t = (s.name + ' ' + s.entity).toLowerCase();
+    if (/movie|film|cinema|theat/.test(t)) return 'play';
+    if (/gam|console|xbox|playstation|ps5/.test(t)) return 'gamepad';
+    if (/night|sleep|bed/.test(t)) return 'bedtime';
+    if (/music|audio|sound|speaker/.test(t)) return 'speaker';
+    if (/light|lamp/.test(t)) return 'sparkles';
+    return 'home';
+  }
+
+  return {
+    /** [{name, entity, symbol}] */
+    scenes: function () {
+      return list.map(function (s) { return {name: s.name, entity: s.entity, symbol: symbol(s)}; });
+    },
+    /** done(null) when Home Assistant ran it, otherwise done(what went wrong). */
+    run: function (scene, done) {
+      var domain = scene.entity.split('.')[0];
+      TV.homeAssistant({url: url, token: token, domain: domain, service: SERVICES[domain], entity: scene.entity}, done);
     }
   };
 })();

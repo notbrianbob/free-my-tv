@@ -106,7 +106,9 @@ stays, and Free My TV opens with a long press of a number key.
    (webostv.developer.lge.com) → *Dev Mode Status* on (the TV restarts) → *Key Server* on. It shows the IP and a
    passphrase.
 3. **Settings:** the same `config.properties` as on Android (the first `python3 webos/build.py` creates it). The
-   TMDB key rules above apply.
+   TMDB key rules above apply, and the same go for `ha_token` (Home Assistant's long-lived token, for the drawer's
+   scene buttons: `ha_url`, `ha_token`, `ha_scenes`; HOME-ASSISTANT.md walks them through it): theirs, secret, only in
+   `config.properties`, never printed or committed, and never their Home Assistant's address either.
 4. **Build:** `python3 webos/build.py` must end with `Built FreeMyTV-webos.ipk`.
 5. **Install:** the first time needs the TV's passphrase, typed by them: ask them to run
    `python3 webos/install.py <IP>` in their own terminal (yours can't answer its prompt, and the passphrase doesn't go
@@ -383,7 +385,11 @@ entries; its system pieces are in `PROTECTED`. USB debugging opens ADB on 5555 t
   height for old WebKit); some names are empty or long (`SAMSUNG_TITLES`); and Tizen 3 answers no "settings" app
   control, so TV Settings opens `org.tizen.menu`.
   `web/home.js` follows `HomeView`'s layout and behavior, so a design change on
-  Android belongs there too. Text: the same catalogues as Android, packed into `i18n.js` by `tools/webapp.py` (only
+  Android belongs there too. Web-only so far: the shelf holds inputs as well as apps (`inputItems`, `pinned` is what
+  was put there, `shelf` adds the *Last used* tile first, `Prefs.lastUsed` set by `launcher`), and the drawer's
+  Home Assistant buttons (`HomeAssistant` in data.js, `TV.homeAssistant`): on LG they go through `webos/service`'s
+  `ha` method, which only calls the services in `HA_SERVICES` (`tools/webapp.py` has the same list), since Home
+  Assistant refuses other origins without its CORS setting; on Samsung and in the preview the page calls it. Text: the same catalogues as Android, packed into `i18n.js` by `tools/webapp.py` (only
   the keys `web/` uses): `tr('Live TV')`, `trf('{n} min ago', {n: 12})`, `plural('plural|…', n)` and
   `formatDate('format|h:mm a', at)` (the catalogue's SimpleDateFormat pattern, written by `web/strings.js`), and
   `tools/translate.py` reads those calls too. Built without a city (`--generic`), `web/zones.js`
