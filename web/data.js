@@ -57,6 +57,10 @@ var Prefs = (function () {
     /** The app or input last opened from here (its id), and whether the shelf starts with it (on by default). */
     lastUsed: function () { return pick('lastUsed', ''); },
     lastTile: function () { return pick('lastTile', true) !== false; },
+    /** Lite mode: 'auto' (TV.liteAuto decides), 'on' or 'off'. */
+    lite: function () { var l = pick('lite', 'auto'); return l === 'on' || l === 'off' ? l : 'auto'; },
+    /** The speed readout in the corner: start-up time, frames per second, memory (off by default). */
+    speed: function () { return pick('speed', false) === true; },
     /** The shelf_apps of the build that last set the shelf, so a new one wins once over the TV's choice. */
     shelfConfig: function () { return pick('shelfConfig', ''); },
     /** The weather's city, picked on the TV (Home Settings → City), or config.properties' (or the time zone's). */

@@ -576,4 +576,8 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 * { -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
 
 /* Tizen 2 and 1 GB TVs (see tv.js): no shadows or animations; their GPUs can't keep up while the focus moves. */
+/* Home Settings → Speed readout */
+#speed { position: absolute; right: 24px; bottom: 14px; z-index: 9; font-size: 18px; font-weight: 600; color: #6E6E73; white-space: pre; pointer-events: none; -webkit-font-feature-settings: 'tnum'; font-feature-settings: 'tnum'; }
+.night #speed { color: rgba(255, 255, 255, 0.7); }
+
 .lite * { box-shadow: none !important; -webkit-transition: none !important; transition: none !important; }

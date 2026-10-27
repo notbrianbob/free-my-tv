@@ -121,6 +121,8 @@ python3 webos/apps.py 192.168.1.50 && python3 webos/build.py && python3 webos/in
 
 The shelf can hold the TV's inputs too: in *Home Settings* → *Shelf*, Live TV and the HDMI inputs are listed under the apps, so the console or the PC can sit next to Netflix. The shelf also starts with what you last opened from Free My TV (*Last used*), so the first OK when it opens takes you back there; *Home Settings* → *Last used on the shelf* turns that off. With [Home Assistant](#home-assistant-optional-lg-and-samsung), the drawer gets your scene buttons too.
 
+If Free My TV feels slow on your TV, *Home Settings* → *Lite mode* turns off the shadows and animations (*Automatic* already does that on TVs known to need it). *Speed readout* shows, in the bottom corner, how long the last start took, the frames per second (and the lowest in the last 10 seconds) and the memory the page uses, so you can see what helps. The app logos are prepared once and kept, so starts after the first one are quicker.
+
 Developer Mode lasts about 40 days: open the Developer Mode app now and then and press **EXTEND**. To remove Free My TV, run `python3 webos/install.py 192.168.1.50 --uninstall`.
 
 ## Samsung TVs (Tizen)

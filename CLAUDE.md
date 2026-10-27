@@ -389,7 +389,10 @@ entries; its system pieces are in `PROTECTED`. USB debugging opens ADB on 5555 t
   was put there, `shelf` adds the *Last used* tile first, `Prefs.lastUsed` set by `launcher`), and the drawer's
   Home Assistant buttons (`HomeAssistant` in data.js, `TV.homeAssistant`): on LG they go through `webos/service`'s
   `ha` method, which only calls the services in `HA_SERVICES` (`tools/webapp.py` has the same list), since Home
-  Assistant refuses other origins without its CORS setting; on Samsung and in the preview the page calls it. Text: the same catalogues as Android, packed into `i18n.js` by `tools/webapp.py` (only
+  Assistant refuses other origins without its CORS setting; on Samsung and in the preview the page calls it.
+  Also web-only: `lifted` logos are kept in localStorage (`fmtv.logos`, only the icons asked for since the start),
+  *Lite mode* (`Prefs.lite`: auto follows `TV.liteAuto`, `applyLite`) and the *Speed readout* (`Speed`, which runs a
+  requestAnimationFrame loop only while it shows). Text: the same catalogues as Android, packed into `i18n.js` by `tools/webapp.py` (only
   the keys `web/` uses): `tr('Live TV')`, `trf('{n} min ago', {n: 12})`, `plural('plural|…', n)` and
   `formatDate('format|h:mm a', at)` (the catalogue's SimpleDateFormat pattern, written by `web/strings.js`), and
   `tools/translate.py` reads those calls too. Built without a city (`--generic`), `web/zones.js`
