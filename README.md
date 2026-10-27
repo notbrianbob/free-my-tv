@@ -173,7 +173,7 @@ With a free [Watchmode](https://api.watchmode.com/) key (`watchmode_key=` in `co
 
 ### Home Assistant (optional, LG and Samsung)
 
-The drawer can hold a few buttons that run things in your [Home Assistant](https://www.home-assistant.io): *Movie*, *Gaming*, *Good night*. In `config.properties`:
+The drawer can hold a few buttons that run things in your [Home Assistant](https://www.home-assistant.io): *Movie*, *Gaming*, *Good night*. One press dims the lights, switches the TV's input or app and sets the volume. Home Assistant can also show alerts on the TV while you watch (the doorbell, the washer). **[The step-by-step guide](HOME-ASSISTANT.md)** covers adding the TV to Home Assistant, the scripts, the token, the three lines in `config.properties`, alerts, and what each error means. In short:
 
 ```properties
 ha_url=http://homeassistant.local:8123
@@ -181,59 +181,7 @@ ha_token=<a long-lived access token: your profile in Home Assistant → Security
 ha_scenes=Movie=script.movie_mode,Gaming=script.gaming_mode,Good night=script.good_night
 ```
 
-Each button is `Name=entity`: a script or a scene runs, an automation triggers, a button entity is pressed. The name picks the symbol (a film, a controller, a moon, otherwise a house). Then build and install again. The token is a password to your home: it stays in `config.properties` (out of git) and in the app built for your TV, so don't share that package. On LG the request goes through the app's own small service on the TV; on Samsung the page makes it, so add the TV to Home Assistant's [`http: cors_allowed_origins`](https://www.home-assistant.io/integrations/http/#cors_allowed_origins) if the buttons say *HTTP 0* or *no answer*.
-
-Home Assistant's [LG webOS integration](https://www.home-assistant.io/integrations/webostv/) does the TV's part from there. A *Movie* script, with your own entity names:
-
-```yaml
-movie_mode:
-  alias: Movie mode
-  sequence:
-    - action: light.turn_on
-      target: { entity_id: light.living_room }
-      data: { brightness_pct: 15 }
-    - action: media_player.select_source
-      target: { entity_id: media_player.living_room_tv }
-      data: { source: Netflix }      # or HDMI 1, or any app or input the TV lists
-    - action: media_player.volume_set
-      target: { entity_id: media_player.living_room_tv }
-      data: { volume_level: 0.2 }
-```
-
-*Good night* would turn the lights off and end with `media_player.turn_off` on the TV.
-
-**Alerts over what you're watching.** The same integration shows a message on the LG TV over any app (`notify.<your TV>`, a small toast in the corner), so alerts need no change in Free My TV, only an automation. Three kinds work well: urgent ones (the doorbell) show at once whenever the TV is on; useful ones (the washer finished) wait until you're back on Free My TV; the rest never show on the TV. For example:
-
-```yaml
-- alias: Doorbell on the TV
-  triggers:
-    - trigger: state
-      entity_id: binary_sensor.doorbell
-      to: "on"
-  conditions:
-    - condition: state
-      entity_id: media_player.living_room_tv
-      state: "on"
-  actions:
-    - action: notify.living_room_tv
-      data: { message: "Someone's at the door" }
-
-- alias: Washer done, when the TV is on the home screen
-  triggers:
-    - trigger: state
-      entity_id: sensor.washer_status
-      to: finished
-  conditions:
-    - condition: time       # quiet hours
-      after: "08:00:00"
-      before: "23:00:00"
-  actions:
-    - wait_template: "{{ is_state_attr('media_player.living_room_tv', 'source', 'Free My TV') }}"
-      timeout: "02:00:00"
-      continue_on_timeout: false
-    - action: notify.living_room_tv
-      data: { message: "The washer is done" }
-```
+Then build and install again. The token is a password to your home: it stays in `config.properties` (out of git) and in the app built for your TV, so don't share that package.
 
 ### Your own photos (optional)
 

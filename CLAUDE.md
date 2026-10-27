@@ -107,7 +107,7 @@ stays, and Free My TV opens with a long press of a number key.
    passphrase.
 3. **Settings:** the same `config.properties` as on Android (the first `python3 webos/build.py` creates it). The
    TMDB key rules above apply, and the same go for `ha_token` (Home Assistant's long-lived token, for the drawer's
-   scene buttons: `ha_url`, `ha_token`, `ha_scenes`; README, Home Assistant): theirs, secret, only in
+   scene buttons: `ha_url`, `ha_token`, `ha_scenes`; HOME-ASSISTANT.md walks them through it): theirs, secret, only in
    `config.properties`, never printed or committed, and never their Home Assistant's address either.
 4. **Build:** `python3 webos/build.py` must end with `Built FreeMyTV-webos.ipk`.
 5. **Install:** the first time needs the TV's passphrase, typed by them: ask them to run
