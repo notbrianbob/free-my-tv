@@ -419,6 +419,48 @@ var TV = (function () {
     finish();
   }
 
+  // MARK: - Home Assistant
+
+  /**
+   * POSTs one Home Assistant service call ({url, token, domain, service, entity}); done(null) when it ran, otherwise
+   * done(what went wrong). On LG it goes through our JS service: Home Assistant answers a page from another origin only
+   * once its own CORS setting allows it. Elsewhere (Samsung, a browser) the page makes the request itself.
+   */
+  function homeAssistant(call, done) {
+    if (webos) {
+      luna('luna://' + self + '.service/ha', call, function (res) {
+        if (!res) haRequest(call, done);   // no service in this package: try from the page
+        else if (res.status >= 200 && res.status < 300) done(null);
+        else done(res.status ? 'HTTP ' + res.status : res.error || 'error');
+      });
+      return;
+    }
+    haRequest(call, done);
+  }
+
+  function haRequest(call, done) {
+    var x = new XMLHttpRequest(), finished = false;
+    function finish(error) {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      done(error);
+    }
+    var timer = setTimeout(function () { try { x.abort(); } catch (e) {} finish('timeout'); }, 10000);
+    x.onreadystatechange = function () {
+      if (x.readyState !== 4) return;
+      finish(x.status >= 200 && x.status < 300 ? null : x.status ? 'HTTP ' + x.status : 'no answer');
+    };
+    try {
+      x.open('POST', call.url + '/api/services/' + call.domain + '/' + call.service, true);
+      x.setRequestHeader('Authorization', 'Bearer ' + call.token);
+      x.setRequestHeader('Content-Type', 'application/json');
+      x.send(JSON.stringify({entity_id: call.entity}));
+    } catch (e) {
+      finish('no answer');
+    }
+  }
+
   // MARK: - The TV, whichever it is
 
   return {
@@ -524,6 +566,9 @@ var TV = (function () {
 
     /** The TV's model, firmware, system, IP address and this app's version, for About this TV. */
     about: about,
+
+    /** A Home Assistant service call for the drawer's buttons; done(null) or done(what went wrong). */
+    homeAssistant: homeAssistant,
 
     /** LG: keeps the TV's screensaver away while ours will take over (`hold` says when). */
     holdScreenSaver: holdScreenSaver,

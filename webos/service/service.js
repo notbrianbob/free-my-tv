@@ -1,10 +1,14 @@
 /*
- * Free My TV's service on LG webOS: one call to the TV's remote control API (127.0.0.1:3000) for the web app.
+ * Free My TV's service on LG webOS: one call to the TV's remote control API (127.0.0.1:3000) for the web app, and
+ * the drawer's Home Assistant buttons (Home Assistant answers no page from another origin without its own CORS setup).
  * Newer webOS gives each app's page its own origin (file://io.freemytv-webos), and the API closes any connection
  * that isn't from file:// ("invalid origin"); from here the handshake says file://.
  * Plain ES5 with Node's net only: older webOS ships an old Node.
  */
 var net = require('net');
+var http = require('http');
+var https = require('https');
+var parse = require('url').parse;
 var Service = require('webos-service');
 
 var service = new Service(require('./package.json').name);
@@ -105,4 +109,34 @@ service.register('ssap', function (message) {
       message.respond(result);
     }
   });
+});
+
+// What each kind of entity does (tools/webapp.py's HA_SERVICES): nothing else in Home Assistant is called from here.
+var HA_SERVICES = {script: 'turn_on', scene: 'turn_on', automation: 'trigger', button: 'press', input_button: 'press'};
+
+service.register('ha', function (message) {
+  var p = message.payload || {}, entity = String(p.entity || ''), domain = entity.split('.')[0];
+  var base = String(p.url || '').replace(/\/+$/, '');
+  if (!/^[a-z_]+\.[a-z0-9_]+$/.test(entity) || !HA_SERVICES.hasOwnProperty(domain) || !/^https?:\/\/[^\/?#\s]+(\/[^?#\s]*)?$/.test(base) || !p.token) {
+    message.respond({returnValue: false, errorText: 'Not a Home Assistant button'});
+    return;
+  }
+  var u = parse(base + '/api/services/' + domain + '/' + HA_SERVICES[domain]);
+  var body = JSON.stringify({entity_id: entity}), answered = false;
+  function answer(result) {
+    if (answered) return;
+    answered = true;
+    result.returnValue = true;   // the page reads status or error; false would mean this service isn't there
+    message.respond(result);
+  }
+  var req = (u.protocol === 'https:' ? https : http).request({
+    hostname: u.hostname, port: u.port, path: u.path, method: 'POST',
+    headers: {'Authorization': 'Bearer ' + p.token, 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body)}
+  }, function (res) {
+    res.resume();
+    answer({status: res.statusCode});
+  });
+  req.setTimeout(10000, function () { req.abort(); answer({error: 'timeout'}); });
+  req.on('error', function (e) { answer({error: e.code || e.message || 'error'}); });
+  req.end(body);
 });

@@ -15,7 +15,11 @@ import translate  # noqa: E402  (the catalogues and the keys the web app uses)
 
 GENERIC = {'tmdbKey': '', 'tmdbRegion': '', 'latitude': '', 'longitude': '', 'city': '', 'language': 'auto',
            'currency': '', 'temperature': 'auto', 'theme': 'auto', 'showCrypto': True, 'hideAnimation': False, 'hideApps': [],
-           'shelfApps': [], 'drawerFirst': False}
+           'shelfApps': [], 'drawerFirst': False, 'haUrl': '', 'haToken': '', 'haScenes': []}
+
+# What each kind of Home Assistant entity does when its scene button is pressed (web/data.js and webos/service).
+HA_SERVICES = {'script': 'turn_on', 'scene': 'turn_on', 'automation': 'trigger', 'button': 'press',
+               'input_button': 'press'}
 
 
 def config_from_args(args):
@@ -51,6 +55,10 @@ def read_config(path):
             sys.exit('config.properties: %s must be a number (got "%s")' % (key, v))
         return v
 
+    ha_url = values.get('ha_url', '').rstrip('/')
+    if ha_url and not re.match(r'^https?://[^/?#\s]+(/[^?#\s]*)?$', ha_url):
+        sys.exit('config.properties: ha_url must start with http:// or https:// (got "%s")' % ha_url)
+
     return {
         'tmdbKey': values.get('tmdb_key', ''),
         'tmdbRegion': values.get('tmdb_region', 'US') or 'US',
@@ -66,7 +74,34 @@ def read_config(path):
         'hideApps': [s.strip() for s in values.get('hide_apps', '').split(',') if s.strip()],
         'shelfApps': [s.strip() for s in values.get('shelf_apps', '').split(',') if s.strip()],
         'drawerFirst': values.get('drawer_first', 'false').lower() == 'true',
+        'haUrl': ha_url,
+        'haToken': values.get('ha_token', ''),
+        'haScenes': ha_scenes(values.get('ha_scenes', '')),
     }
+
+
+def ha_scenes(text):
+    """ha_scenes in config.properties ("Movie=script.movie_mode,Good night=scene.night"): [{name, entity}]."""
+    out = []
+    for item in [s.strip() for s in text.split(',') if s.strip()]:
+        name, _, entity = item.rpartition('=')
+        name, entity = name.strip(), entity.strip().lower()
+        if not name or not re.match(r'^[a-z_]+\.[a-z0-9_]+$', entity):
+            sys.exit('config.properties: each ha_scenes item is Name=entity, like Movie=script.movie_mode (got "%s")' % item)
+        if entity.split('.')[0] not in HA_SERVICES:
+            sys.exit('config.properties: ha_scenes takes scripts, scenes, automations and buttons (got "%s")' % entity)
+        out.append({'name': name, 'entity': entity})
+    return out
+
+
+def ha_summary(config):
+    """A line for the build's output about the Home Assistant buttons, or '' when there are none."""
+    scenes = config.get('haScenes') or []
+    if not scenes:
+        return ''
+    if not config.get('haUrl') or not config.get('haToken'):
+        return 'ha_scenes needs ha_url and ha_token too: the Home Assistant buttons stay off.'
+    return 'With %d Home Assistant button%s.' % (len(scenes), '' if len(scenes) == 1 else 's')
 
 
 def coins():
