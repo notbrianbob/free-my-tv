@@ -108,6 +108,22 @@
   var lifted = {};   // icon url -> {src, bg: [r, g, b], ink: luminance histogram} or false (keep the icon as it is)
   var LIFT_SIZE = 240;
 
+  // Lifting reads every pixel of every icon, which old TVs are slow at, so the results are kept for the next start.
+  // Only the icons asked for since this start are saved: an app updated or removed takes its old icon's away.
+  var LOGOS_KEY = 'fmtv.logos', logosAsked = {}, logosTimer = 0;
+  try { lifted = JSON.parse(localStorage.getItem(LOGOS_KEY)) || {}; } catch (e) { lifted = {}; }
+
+  function saveLogos() {
+    clearTimeout(logosTimer);
+    logosTimer = setTimeout(function () {
+      var keep = {};
+      for (var url in logosAsked) if (logosAsked.hasOwnProperty(url) && lifted[url] !== undefined) keep[url] = lifted[url];
+      try { localStorage.setItem(LOGOS_KEY, JSON.stringify(keep)); } catch (e) {
+        try { localStorage.removeItem(LOGOS_KEY); } catch (e2) {}   // full: the next start lifts them again
+      }
+    }, 3000);
+  }
+
   // sRGB (0-255) to linear light, computed once: lift() needs it for every pixel, and old TVs are slow at Math.pow.
   var LINEAR = [];
   for (var li = 0; li < 256; li++) LINEAR[li] = li <= 10 ? li / 255 / 12.92 : Math.pow((li / 255 + 0.055) / 1.055, 2.4);
@@ -273,13 +289,14 @@
     if (wordSize) word.style.fontSize = wordSize + 'px';
     if (app.icon) {
       var img = el('img', '', box), url = app.icon;
+      if (!logosAsked[url]) { logosAsked[url] = true; if (lifted[url] !== undefined) saveLogos(); }
       word.style.visibility = 'hidden';
       img.onerror = function () { if (img.parentNode) img.parentNode.removeChild(img); word.style.visibility = ''; };
       if (lifted[url]) { showLogo(img, box, top, bottom, lifted[url], !k); return; }
       if (lifted[url] !== false) {
         img.onload = function () {
           img.onload = null;
-          if (lifted[url] === undefined) lifted[url] = lift(img);
+          if (lifted[url] === undefined) { lifted[url] = lift(img); saveLogos(); }
           if (lifted[url]) showLogo(img, box, top, bottom, lifted[url], !k);
         };
       }
@@ -778,6 +795,11 @@
     rows.push({label: tr('Shelf'), value: '›', shelf: true, step: function (d) { if (d >= 0) openShelfEdit(); }});
     rows.push({label: tr('Last used on the shelf'), toggle: Prefs.lastTile(),
       step: function () { Prefs.set('lastTile', !Prefs.lastTile()); pickShelf(); renderShelf(); }});
+    var lite = Prefs.lite();
+    rows.push({label: tr('Lite mode'), value: lite === 'on' ? tr('On') : lite === 'off' ? tr('Off') : auto,
+      step: function (d) { cycle('lite', ['auto', 'on', 'off'], lite, d); applyLite(); }});
+    rows.push({label: tr('Speed readout'), toggle: Prefs.speed(),
+      step: function () { Prefs.set('speed', !Prefs.speed()); Speed.apply(); }});
     rows.push({label: tr('About this TV'), value: '›', about: true, step: function (d) { if (d >= 0) openAbout(); }});
     if (TV.canOpenSettings) rows.push({label: tr('TV Settings'), value: '›', step: function (d) { if (d >= 0) tvSettings(); }});
     return rows;
@@ -1270,6 +1292,69 @@
     toastTimer = setTimeout(function () { setClass(t, 'on', false); }, 6000);
   }
 
+  // MARK: - Lite mode and the speed readout
+
+  /** Home Settings → Lite mode: no shadows or transitions (home.css), on its own on TVs that need it (TV.liteAuto). */
+  function applyLite() {
+    var l = Prefs.lite();
+    setClass(document.documentElement, 'lite', l === 'on' || (l === 'auto' && TV.liteAuto));
+  }
+
+  /**
+   * Home Settings → Speed readout: in the corner, how long the last start took (from the page loading to the shelf
+   * with the TV's apps), frames per second over the last second and the lowest in the last 10, and the memory the page
+   * holds where the TV tells. It counts frames only while it shows.
+   */
+  var Speed = (function () {
+    var startMs = 0, frames = 0, second = 0, history = [], running = false, timer = 0;
+    var raf = window.requestAnimationFrame || window.webkitRequestAnimationFrame;
+
+    function loop() {
+      if (!running) return;
+      frames++;
+      raf(loop);
+    }
+
+    function render() {
+      var box = $('speed');
+      if (!box || !running) return;
+      var now = Date.now(), first = !second, fps = first ? 0 : Math.round(frames * 1000 / Math.max(1, now - second));
+      frames = 0;
+      second = now;
+      if (first) { timer = setTimeout(render, 1000); return; }   // a whole second first
+      if (!document.hidden) history.push(fps);
+      if (history.length > 10) history.shift();
+      var low = fps;
+      for (var i = 0; i < history.length; i++) low = Math.min(low, history[i]);
+      var lines = [startMs ? trf('Start-up {ms} ms', {ms: startMs}) : '', trf('{fps} fps, lowest {low}', {fps: fps, low: low})];
+      var mem = window.performance && window.performance.memory;
+      if (mem && mem.usedJSHeapSize) lines.push(trf('{n} MB', {n: Math.round(mem.usedJSHeapSize / 1048576)}));
+      box.textContent = lines.join('   ').replace(/^\s+/, '');
+      timer = setTimeout(render, 1000);
+    }
+
+    return {
+      /** The home screen is up with the TV's apps: the start-up time, once. */
+      started: function () {
+        if (startMs) return;
+        var t = window.performance && window.performance.timing;
+        startMs = t && t.navigationStart ? Date.now() - t.navigationStart : 0;
+      },
+      apply: function () {
+        var on = Prefs.speed() && !!raf, box = $('speed');
+        if (on && !box) { box = el('div', '', stage); box.id = 'speed'; }
+        if (box) box.style.display = on ? '' : 'none';
+        if (on === running) return;
+        running = on;
+        clearTimeout(timer);
+        history = [];
+        frames = 0;
+        second = 0;
+        if (on) { raf(loop); render(); }
+      }
+    };
+  })();
+
   // MARK: - Night, clock, screensaver
 
   var lastNight = null;
@@ -1461,6 +1546,8 @@
   });
 
   I18N.set(Prefs.language());
+  applyLite();
+  Speed.apply();
   checkNight();   // now, from the last forecast: not after the TV lists its apps, with the day look until then
   // LG's screensaver waits only when ours will show: not under a sheet (ours waits there), and not without photos.
   TV.holdScreenSaver(function () { return !sheetOpen() && saverPhotos().length > 0; });
@@ -1470,6 +1557,7 @@
   loadApps(function () {
     renderAll();
     restInDrawer();
+    Speed.started();
     Data.refresh();
   });
   setInterval(function () {

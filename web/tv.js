@@ -16,9 +16,9 @@ var TV = (function () {
   // So do TVs under 2 GB that draw the page at twice its size (an LG on webOS TV Lite 10, MT5889, 1.3 GB, ratio 2:
   // 23-28 fps moving along the shelf, 60 with lite; shadows off alone, 45). deviceMemory rounds down to 1 under 2 GB on
   // webOS 5+ and Tizen 5+, where 1.5 GB TVs at a ratio of 1 run smoothly.
-  if (tizen2 || ((webos || samsung) && navigator.deviceMemory && navigator.deviceMemory <= 1 && (window.devicePixelRatio || 1) > 1)) {
-    document.documentElement.className += ' lite';
-  }
+  // Home Settings → Lite mode can also turn it on or off by hand (home.js); this is "Automatic", set before the first paint.
+  var liteAuto = tizen2 || ((webos || samsung) && navigator.deviceMemory && navigator.deviceMemory <= 1 && (window.devicePixelRatio || 1) > 1);
+  if (liteAuto) document.documentElement.className += ' lite';
 
   /** One Luna call; done(result) with null on failure. */
   function luna(uri, params, done) {
@@ -471,6 +471,9 @@ var TV = (function () {
      * org.tizen.menu both answer success and nothing shows, and the remote API ignores MENU and HOME.
      */
     canOpenSettings: !tizen2,
+
+    /** Whether this TV gets the lite look on its own (Home Settings → Lite mode, Automatic). */
+    liteAuto: !!liteAuto,
 
     /** Installed apps, as the TV's launcher lists them: [{id, title, icon, color}]. */
     apps: function (done) {
