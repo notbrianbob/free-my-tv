@@ -1,0 +1,27 @@
+name: Build LG webOS IPK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  webos-ipk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Package generic webOS app
+        run: python3 webos/build.py --generic
+      - name: Upload LG installation package
+        uses: actions/upload-artifact@v4
+        with:
+          name: FreeMyTV-webos
+          path: FreeMyTV-webos.ipk
+          if-no-files-found: error
+          retention-days: 90
